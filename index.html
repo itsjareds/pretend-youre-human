@@ -1,0 +1,164 @@
+<html>
+<head>
+<script src="http://code.jquery.com/jquery-latest.min.js"
+        type="text/javascript"></script>
+<script src="/socket.io/socket.io.js"></script>
+<title>WebSocket Chatroom</title>
+
+<style type="text/css">
+* {
+    padding: 0;
+    margin: 0;
+}
+#container {
+    width: 600px;
+    margin: 3em auto;
+}
+#topic {
+    width: 100%;
+    margin: 0 auto;
+    text-align: center;
+}
+#chatarea {
+    border: 1px solid black;
+    height: 10em;
+    overflow-y: scroll;
+}
+.inputbox {
+    overflow: hidden;
+}
+.inputbox input {
+    width: 100%;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+#send {
+    float: right;
+}
+#footer {
+    width: 100%;
+    text-align: center;
+}
+</style>
+</head>
+
+<body>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    var printmsg = function(msg) {
+        var $chat = $("#chatarea");
+        $chat.append(msg+'\n');
+        $chat.stop().animate({ scrollTop: $chat[0].scrollHeight }, "slow");
+    };
+     
+    var socket = io.connect('http://localhost');
+    socket.on("connecting", function() {
+        console.log("connecting...");
+        printmsg("<em>Connecting to chat server...</em>");
+    });
+    socket.on("connect", function() {
+        console.log("connection established");
+        //printmsg("<em>Connection established!</em>");
+        $("#chatarea").html("");
+    });
+    socket.on("disconnect", function() {
+        console.log("disconnected");
+        printmsg("<em>Disconnected.</em>");
+    });
+    socket.on("connect_failed", function() {
+        console.log("failed to connect");
+        printmsg("<em>Failed to connect to chat server.</em>");
+    });
+    socket.on("reconnecting", function() {
+        console.log("reconnecting...");
+        printmsg("<em>Attempting to reconnect...</em>");
+    });
+    socket.on("reconnect_failed", function() {
+        console.log("failed to reconnect");
+        printmsg("<em>Failed to re-establish connection.</em>");
+    });
+    socket.on("chat", function (msg) {
+        console.log(msg.nick+": "+msg.content);
+        printmsg("<strong>&lt;"+msg.nick+"&gt;</strong> "+msg.content);
+    });
+    socket.on("notify", function(data) {
+        switch (data.type) {
+            case "nick":
+                console.log(data.who+" -> "+data.nick);
+                printmsg(data.who+" is now known as "+data.nick+".");
+                break;
+            case "topic":
+                if (data.who != null) {
+                    console.log("Topic changed to "+data.content+" by "+data.who+".");
+                    printmsg("Topic changed to <u>"+data.content+"</u> by "+data.who+".");
+                }
+                $("#topic").html(data.content);
+                break;
+            case "connect":
+                console.log(data.who+" connected.");
+                printmsg(data.who+" has joined the room.");
+                break;
+            case "disconnect":
+                console.log(data.who+" disconnected.");
+                printmsg(data.who+" has left the room.");
+                break;
+            default: break;
+        }
+    });
+</script>
+
+<div id="container">
+<h3 id="topic"></h3>
+<pre id="chatarea"></pre>
+<input type="button" value="Send" id="send"/>
+<div class="inputbox"><input type="text" id="msgdraft" value=""/></div>
+<script type="text/javascript">
+    var chatHistory = new Array();
+    var histidx = 0;
+    var hist_len = 100;
+
+    var sendMsg = function() {
+        if ($("#msgdraft").val().length == 0) return;
+        
+        var msg = $("#msgdraft").val().trim();
+        chatHistory.push(msg);
+        if (chatHistory.length > hist_len)
+            chatHistory.shift();
+        histidx = chatHistory.length;
+
+        socket.emit("chat", msg);
+
+        $("#msgdraft").val("");
+    };
+    $("#send").click(sendMsg);
+    $("#msgdraft").keydown(function(e) {
+        switch (e.keycode || e.which) {
+            case 13: // enter key
+                sendMsg();
+                return false;
+                break;
+            case 38: // up arrow
+                if (histidx > 0) {
+                    histidx--;
+                    $(this).val(chatHistory[histidx]);
+                }
+                return false;
+                break;
+            case 40: // down arrow
+                if (histidx < chatHistory.length && histidx < hist_len) {
+                    histidx++;
+                    $(this).val(chatHistory[histidx]);
+                }
+                return false;
+                break;
+        }
+    });
+</script>
+<br/>
+<div id="footer"><a href="https://github.com/itsjareds/nodejs-chat/" target="_blank">Available on GitHub</a></div>
+</div>
+
+</body>
+</html>
